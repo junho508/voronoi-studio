@@ -75,6 +75,7 @@
 - **Cell Size (`cell_size`, mm)**: The nominal diameter or pitch of each cell.
 - **Rib Width / Cell Gap (`cell_gap`, mm)**: Distance between adjacent cells (thickness of structural ribs).
 - **Corner Fillet Radius (`corner_radius`, mm)**: Fillet radius applied to all internal cell vertices (exported as true CAD `ARC`s).
+- **Curve Smoothness (`smoothness`, 0% ~ 100%)**: Chaikin subdivision smoothing that morphs straight-edged polygons into organic, pebble-like, bio-mimetic curved cells.
 - **Boundary Inset (`boundary_offset`, mm)**: Margin inward from boundary outline.
 - **Pattern Rotation (`rotation`, deg)**: Angle of pattern orientation (-90° to +90°).
 - **Jitter (`jitter`, 0.0 ~ 1.0, Voronoi only)**: Randomness of initial seed distribution.
@@ -190,6 +191,7 @@ Deploy this app online for free on **Render.com** with **UptimeRobot** keep-aliv
 - **셀 크기 (`cell_size`, mm)**: 패턴을 구성하는 각 셀의 기준 지름/한 변의 크기.
 - **셀 간격 / 리브 폭 (`cell_gap`, mm)**: 셀과 셀 사이의 살 두께 (3D 프린팅 벽 두께).
 - **모따기 반경 (`corner_radius`, mm)**: 셀 내부 각진 모서리에 들어갈 필렛 반경 (CAD의 `ARC` 원호로 내보내짐).
+- **곡선 부드러움 (`smoothness`, 0% ~ 100%)**: 각진 다각형 모서리와 변을 유기적 곡선(조약돌/생체 메쉬) 형태로 부드럽게 변환.
 - **경계 오프셋 (`boundary_offset`, mm)**: 외곽 경계선으로부터 안쪽으로 띄울 여백 거리.
 - **패턴 회전 (`rotation`, °)**: 패턴의 배치 각도 (-90° ~ +90°).
 - **지터 (`jitter`, 0.0 ~ 1.0, 보로노이 전용)**: 씨드 배치의 무작위성 (0=정규 격자, 1=불규칙 자연 형상).

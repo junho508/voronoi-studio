@@ -71,17 +71,18 @@ def post_process_polygon(
     effective_boundary: Polygon,
     cell_gap: float = 0.0,
     corner_radius: float = 0.0,
-    is_seamless: bool = False
+    is_seamless: bool = False,
+    smoothness: float = 0.0
 ) -> List[List[List[float]]]:
     """
-    Process polygon: clip against boundary, apply cell_gap and corner_radius.
+    Process polygon: clip against boundary, apply cell_gap, corner_radius, and organic smoothness.
     
     In seamless mode:
-      Applies cell_gap and corner_radius before clipping against boundary.
+      Applies cell_gap, corner_radius, and smoothness before clipping against boundary.
       This leaves clean open seams along boundary edges that match the opposite side!
     
     In standard mode:
-      Clips to boundary first, then insets by cell_gap/2 and fillets corners.
+      Clips to boundary first, then insets by cell_gap/2, fillets corners, and applies smoothness.
     """
     if poly.is_empty or poly.area <= 1e-6:
         return []
@@ -99,6 +100,9 @@ def post_process_polygon(
                 current = eroded.buffer(corner_radius, join_style=1)
             else:
                 return []
+
+        if smoothness > 1e-3:
+            current = chaikin_smooth_polygon(current, smoothness=smoothness)
 
         try:
             clipped = current.intersection(effective_boundary)
@@ -158,6 +162,9 @@ def post_process_polygon(
                 if current.is_empty or current.area <= 1e-4:
                     continue
 
+            if smoothness > 1e-3:
+                current = chaikin_smooth_polygon(current, smoothness=smoothness)
+
             if isinstance(current, Polygon):
                 coords = [[round(float(c[0]), 4), round(float(c[1]), 4)] for c in current.exterior.coords]
                 if len(coords) >= 4:
@@ -170,6 +177,47 @@ def post_process_polygon(
                             result_coords.append(coords)
 
         return result_coords
+
+
+def chaikin_smooth_polygon(poly: Polygon, smoothness: float = 0.0, iterations: int = 3) -> Polygon:
+    """
+    Apply Chaikin corner-cutting subdivision to smooth sharp polygon edges
+    into an organic curved pebble/spline contour.
+    """
+    if smoothness <= 0.001 or poly.is_empty:
+        return poly
+
+    ext_coords = list(poly.exterior.coords)
+    if len(ext_coords) < 4:
+        return poly
+
+    pts = np.array(ext_coords[:-1], dtype=np.float64)
+    # alpha controls the cutting depth: from 0.0 to 0.25
+    alpha = 0.25 * min(1.0, max(0.0, smoothness))
+
+    for _ in range(iterations):
+        n = len(pts)
+        new_pts = []
+        for i in range(n):
+            p0 = pts[i]
+            p1 = pts[(i + 1) % n]
+            q = (1.0 - alpha) * p0 + alpha * p1
+            r = alpha * p0 + (1.0 - alpha) * p1
+            new_pts.append(q)
+            new_pts.append(r)
+        pts = np.array(new_pts)
+
+    smoothed_coords = pts.tolist()
+    smoothed_coords.append(smoothed_coords[0])
+    try:
+        smoothed_poly = Polygon(smoothed_coords)
+        if not smoothed_poly.is_valid:
+            smoothed_poly = shapely.make_valid(smoothed_poly)
+            if isinstance(smoothed_poly, MultiPolygon):
+                smoothed_poly = max(smoothed_poly.geoms, key=lambda g: g.area)
+        return smoothed_poly if isinstance(smoothed_poly, Polygon) and smoothed_poly.area > 1e-4 else poly
+    except Exception:
+        return poly
 
 
 def generate_seed_points(
@@ -352,6 +400,9 @@ def generate_voronoi_pattern(
     boundary_offset = float(params.get("boundary_offset", 0.0))
     cell_gap = float(params.get("cell_gap", 0.0))
     corner_radius = float(params.get("corner_radius", 0.0))
+    smoothness = float(params.get("smoothness", 0.0))
+    if smoothness > 1.0:
+        smoothness = smoothness / 100.0
     seamless = seamless or bool(params.get("seamless", False))
 
     # Apply boundary_offset
@@ -463,7 +514,8 @@ def generate_voronoi_pattern(
             effective_boundary,
             cell_gap=cell_gap,
             corner_radius=corner_radius,
-            is_seamless=seamless
+            is_seamless=seamless,
+            smoothness=smoothness
         )
 
         for coords in processed_coords_list:
@@ -487,6 +539,9 @@ def generate_hexagonal_pattern(
     boundary_offset = float(params.get("boundary_offset", 0.0))
     cell_gap = float(params.get("cell_gap", 0.0))
     corner_radius = float(params.get("corner_radius", 0.0))
+    smoothness = float(params.get("smoothness", 0.0))
+    if smoothness > 1.0:
+        smoothness = smoothness / 100.0
     n_points = int(params.get("n_points", 50))
 
     density = float(params.get("density", 0.0))
@@ -588,7 +643,8 @@ def generate_hexagonal_pattern(
                     effective_boundary,
                     cell_gap=cell_gap,
                     corner_radius=corner_radius,
-                    is_seamless=True
+                    is_seamless=True,
+                    smoothness=smoothness
                 )
                 if processed:
                     seed_pt = [round(center_x, 4), round(center_y, 4)]
@@ -639,7 +695,8 @@ def generate_hexagonal_pattern(
                 effective_boundary,
                 cell_gap=cell_gap,
                 corner_radius=corner_radius,
-                is_seamless=False
+                is_seamless=False,
+                smoothness=smoothness
             )
             if processed:
                 seed_pt = [round(center_x, 4), round(center_y, 4)]
@@ -666,6 +723,9 @@ def generate_triangular_pattern(
     boundary_offset = float(params.get("boundary_offset", 0.0))
     cell_gap = float(params.get("cell_gap", 0.0))
     corner_radius = float(params.get("corner_radius", 0.0))
+    smoothness = float(params.get("smoothness", 0.0))
+    if smoothness > 1.0:
+        smoothness = smoothness / 100.0
     n_points = int(params.get("n_points", 50))
 
     density = float(params.get("density", 0.0))
@@ -757,7 +817,8 @@ def generate_triangular_pattern(
                         effective_boundary,
                         cell_gap=cell_gap,
                         corner_radius=corner_radius,
-                        is_seamless=True
+                        is_seamless=True,
+                        smoothness=smoothness
                     )
                     if processed:
                         c_rot = rotate_point(up_centroid[0], up_centroid[1], cx, cy, rotation)
@@ -790,7 +851,8 @@ def generate_triangular_pattern(
                         effective_boundary,
                         cell_gap=cell_gap,
                         corner_radius=corner_radius,
-                        is_seamless=True
+                        is_seamless=True,
+                        smoothness=smoothness
                     )
                     if processed:
                         c_rot = rotate_point(down_centroid[0], down_centroid[1], cx, cy, rotation)
@@ -843,7 +905,8 @@ def generate_triangular_pattern(
                     effective_boundary,
                     cell_gap=cell_gap,
                     corner_radius=corner_radius,
-                    is_seamless=False
+                    is_seamless=False,
+                    smoothness=smoothness
                 )
                 if processed:
                     c_rot = rotate_point(up_centroid[0], up_centroid[1], cx, cy, rotation)
@@ -876,7 +939,8 @@ def generate_triangular_pattern(
                     effective_boundary,
                     cell_gap=cell_gap,
                     corner_radius=corner_radius,
-                    is_seamless=False
+                    is_seamless=False,
+                    smoothness=smoothness
                 )
                 if processed:
                     c_rot = rotate_point(down_centroid[0], down_centroid[1], cx, cy, rotation)
@@ -904,6 +968,9 @@ def generate_square_pattern(
     boundary_offset = float(params.get("boundary_offset", 0.0))
     cell_gap = float(params.get("cell_gap", 0.0))
     corner_radius = float(params.get("corner_radius", 0.0))
+    smoothness = float(params.get("smoothness", 0.0))
+    if smoothness > 1.0:
+        smoothness = smoothness / 100.0
     n_points = int(params.get("n_points", 50))
 
     density = float(params.get("density", 0.0))
@@ -995,7 +1062,8 @@ def generate_square_pattern(
                     effective_boundary,
                     cell_gap=cell_gap,
                     corner_radius=corner_radius,
-                    is_seamless=True
+                    is_seamless=True,
+                    smoothness=smoothness
                 )
                 if processed:
                     c_rot = rotate_point(center_x, center_y, cx, cy, rotation)
@@ -1049,7 +1117,8 @@ def generate_square_pattern(
                 effective_boundary,
                 cell_gap=cell_gap,
                 corner_radius=corner_radius,
-                is_seamless=False
+                is_seamless=False,
+                smoothness=smoothness
             )
             if processed:
                 c_rot = rotate_point(center_x, center_y, cx, cy, rotation)

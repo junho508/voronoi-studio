@@ -174,6 +174,7 @@ def api_generate():
             "boundary_offset": float(data.get("boundary_offset", 0.0)),
             "cell_gap": float(data.get("cell_gap", 0.0)),
             "corner_radius": float(data.get("corner_radius", 0.0)),
+            "smoothness": float(data.get("smoothness", 0.0)),
             "pattern_type": str(data.get("pattern_type", "voronoi")),
             "seed_points": data.get("seed_points"),
             "cell_size": float(data.get("cell_size", 0.0)),

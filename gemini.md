@@ -96,6 +96,7 @@ voronoi/
 - Hexagon/Triangle/Square patterns ignore `seed` and `jitter` (deterministic grids)
 
 ## Recent Changes (2026-11)
+- Organic Curve Smoothing (곡선 부드러움): Added Chaikin corner-cutting subdivision (`smoothness`: 0% to 100%) converting straight-edged Voronoi and regular cells into smooth, organic, pebble/cellular contours (bio-mimetic lattice)
 - Fixed DXF mode Tile Preview: DXF region bounds format unified to `{minx, miny, maxx, maxy}`, resolving NaN dimension calculation and enabling 3x3 Tile Preview in DXF boundary mode
 - Contextual shortcut guidance: in Hexagon/Triangle/Square modes, disabled shortcuts (+ 씨드추가, Del, 우클릭, Shift+클릭) are automatically hidden in the left panel footer, showing only Ctrl+Z and 드래그 위치 이동
 - Regular pattern aspect ratio preservation in seamless tiling: Optimal $(nx, ny)$ quantization search simultaneously balances width and height to keep regular geometric proportions (정사각형 100% 비율 유지, 정육각형/정삼각형 왜곡률 1% 이내)

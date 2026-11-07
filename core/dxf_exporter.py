@@ -289,11 +289,11 @@ def export_to_dxf(
         if len(clean_pts) < 3:
             continue
 
-        if corner_radius > 0.1:
+        if corner_radius > 0.1 and len(clean_pts) < 30:
             # Export with true ARC entities for rounded corners
             _add_cell_as_arcs(msp, clean_pts, corner_radius, "VORONOI_PATTERN")
         else:
-            # Simple polyline for non-rounded cells
+            # High-resolution closed polyline for smooth organic or standard cells
             msp.add_lwpolyline(
                 clean_pts,
                 close=True,

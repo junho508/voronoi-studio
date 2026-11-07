@@ -368,6 +368,7 @@ class VoronoiApp {
     this.syncRangeNumber('input-boundary-offset', 'input-boundary-offset-num');
     this.syncRangeNumber('input-cell-gap', 'input-cell-gap-num');
     this.syncRangeNumber('input-corner-radius', 'input-corner-radius-num');
+    this.syncRangeNumber('input-smoothness', 'input-smoothness-num');
 
     // Jitter Range & Label
     const jitterRange = document.getElementById('input-jitter');
@@ -670,6 +671,7 @@ class VoronoiApp {
     const boundaryOffset = parseFloat(document.getElementById('input-boundary-offset')?.value) || 0;
     const cellGap = parseFloat(document.getElementById('input-cell-gap')?.value) || 0.5;
     const cornerRadius = parseFloat(document.getElementById('input-corner-radius')?.value) || 0;
+    const smoothness = parseFloat(document.getElementById('input-smoothness')?.value) || 0;
 
     const selected = this.state.boundaries.filter((b) =>
       this.state.selectedBoundaryIds.includes(b.id)
@@ -690,6 +692,7 @@ class VoronoiApp {
       boundary_offset: boundaryOffset,
       cell_gap: cellGap,
       corner_radius: cornerRadius,
+      smoothness: smoothness,
       pattern_offset_x: this.state.patternOffsetX || 0,
       pattern_offset_y: this.state.patternOffsetY || 0,
       seamless: document.getElementById('toggle-seamless')?.checked || false,
@@ -1029,6 +1032,11 @@ class VoronoiApp {
     const hInput = document.getElementById('input-rect-height');
     if (wInput) wInput.value = '100';
     if (hInput) hInput.value = '100';
+
+    const smInput = document.getElementById('input-smoothness');
+    const smNum = document.getElementById('input-smoothness-num');
+    if (smInput) smInput.value = '0';
+    if (smNum) smNum.value = '0';
 
     // Clear canvas
     this.canvas.clearAll();
