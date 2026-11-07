@@ -10,6 +10,7 @@ import math
 from typing import List, Tuple, Dict, Any, Optional, Union
 import numpy as np
 from scipy.spatial import Voronoi
+from scipy.ndimage import gaussian_filter1d
 import shapely
 from shapely.geometry import Polygon, MultiPolygon, Point, GeometryCollection
 
@@ -72,152 +73,526 @@ def post_process_polygon(
     cell_gap: float = 0.0,
     corner_radius: float = 0.0,
     is_seamless: bool = False,
-    smoothness: float = 0.0
+    smoothness: float = 0.0,
+    cell_size: float = 15.0,
+    cell_style: str = "line",
+    spline_type: str = "pebble"
 ) -> List[List[List[float]]]:
     """
-    Process polygon: clip against boundary, apply cell_gap, corner_radius, and organic smoothness.
+    Process polygon: clip against boundary, apply cell_gap, corner_radius, and curve styling.
     
-    In seamless mode:
-      Applies cell_gap, corner_radius, and smoothness before clipping against boundary.
-      This leaves clean open seams along boundary edges that match the opposite side!
-    
-    In standard mode:
-      Clips to boundary first, then insets by cell_gap/2, fillets corners, and applies smoothness.
+    In LINE mode (cell_style == 'line'):
+      - Pure standard CAD geometry: straight lines + true CAD circular corner fillets.
+      - Uses buffer(-corner_radius, join_style=2) followed by buffer(+corner_radius, join_style=1).
+      - Straight edges remain exact lines; corners become exact circular arcs.
+      - Perfectly matches DXF LINE + ARC export entities.
+      
+    In SPLINE mode (cell_style == 'spline'):
+      - Organic bionic lattice contours: combines corner_radius and smoothness.
+      - 'pebble' (조약돌형, default): Morphological round closing + organic pebble curvature.
+      - 'lattice' (래티스형): Tensioned Catmull-Rom spline with deep corner penetration.
     """
     if poly.is_empty or poly.area <= 1e-6:
         return []
 
-    if is_seamless:
-        current = poly
-        if cell_gap > 1e-4:
-            current = current.buffer(-cell_gap / 2.0)
-            if current.is_empty or current.area <= 1e-4:
-                return []
+    is_spline = (str(cell_style).lower() == "spline")
 
-        if corner_radius > 1e-4:
-            eroded = current.buffer(-corner_radius, join_style=2)
-            if not eroded.is_empty and eroded.area > 1e-4:
-                current = eroded.buffer(corner_radius, join_style=1)
-            else:
-                return []
-
-        if smoothness > 1e-3:
-            current = chaikin_smooth_polygon(current, smoothness=smoothness)
-
-        try:
-            clipped = current.intersection(effective_boundary)
-        except Exception:
-            clipped = current.buffer(0).intersection(effective_boundary.buffer(0))
-
-        if clipped.is_empty or clipped.area <= 1e-4:
-            return []
-
-        sub_polys: List[Polygon] = []
-        if isinstance(clipped, Polygon):
-            sub_polys = [clipped]
-        elif isinstance(clipped, (MultiPolygon, GeometryCollection)):
-            for g in clipped.geoms:
-                if isinstance(g, Polygon) and g.area > 1e-4:
-                    sub_polys.append(g)
-
-        result_coords: List[List[List[float]]] = []
-        for sp in sub_polys:
-            coords = [[round(float(c[0]), 4), round(float(c[1]), 4)] for c in sp.exterior.coords]
-            if len(coords) >= 4:
-                result_coords.append(coords)
-        return result_coords
-
-    else:
-        # Standard non-seamless mode
-        try:
-            clipped = poly.intersection(effective_boundary)
-        except Exception:
-            clipped = poly.buffer(0).intersection(effective_boundary.buffer(0))
-
-        if clipped.is_empty or clipped.area <= 1e-4:
-            return []
-
-        sub_polys: List[Polygon] = []
-        if isinstance(clipped, Polygon):
-            sub_polys = [clipped]
-        elif isinstance(clipped, (MultiPolygon, GeometryCollection)):
-            for g in clipped.geoms:
-                if isinstance(g, Polygon) and g.area > 1e-4:
-                    sub_polys.append(g)
-
-        result_coords: List[List[List[float]]] = []
-
-        for sp in sub_polys:
-            current = sp
+    if not is_spline:
+        # ====================================================
+        # LINE MODE (Exact CAD Lines + True ARC Fillets)
+        # ====================================================
+        if is_seamless:
+            current = poly
             if cell_gap > 1e-4:
                 current = current.buffer(-cell_gap / 2.0)
                 if current.is_empty or current.area <= 1e-4:
-                    continue
+                    return []
 
             if corner_radius > 1e-4:
                 eroded = current.buffer(-corner_radius, join_style=2)
-                if eroded.is_empty or eroded.area <= 1e-4:
-                    continue
-                current = eroded.buffer(corner_radius, join_style=1)
+                if not eroded.is_empty and eroded.area > 1e-4:
+                    current = eroded.buffer(corner_radius, join_style=1)
+            if current.is_empty or current.area <= 1e-4:
+                return []
+
+            try:
+                clipped = current.intersection(effective_boundary)
+            except Exception:
+                clipped = current.buffer(0).intersection(effective_boundary.buffer(0))
+
+            if clipped.is_empty or clipped.area <= 1e-4:
+                return []
+
+            sub_polys: List[Polygon] = []
+            if isinstance(clipped, Polygon):
+                sub_polys = [clipped]
+            elif isinstance(clipped, (MultiPolygon, GeometryCollection)):
+                for g in clipped.geoms:
+                    if isinstance(g, Polygon) and g.area > 1e-4:
+                        sub_polys.append(g)
+
+            result_coords: List[List[List[float]]] = []
+            for sp in sub_polys:
+                coords = [[round(float(c[0]), 4), round(float(c[1]), 4)] for c in sp.exterior.coords]
+                if len(coords) >= 4:
+                    result_coords.append(coords)
+            return result_coords
+
+        else:
+            # Standard non-seamless mode
+            try:
+                clipped = poly.intersection(effective_boundary)
+            except Exception:
+                clipped = poly.buffer(0).intersection(effective_boundary.buffer(0))
+
+            if clipped.is_empty or clipped.area <= 1e-4:
+                return []
+
+            sub_polys: List[Polygon] = []
+            if isinstance(clipped, Polygon):
+                sub_polys = [clipped]
+            elif isinstance(clipped, (MultiPolygon, GeometryCollection)):
+                for g in clipped.geoms:
+                    if isinstance(g, Polygon) and g.area > 1e-4:
+                        sub_polys.append(g)
+
+            result_coords: List[List[List[float]]] = []
+
+            for sp in sub_polys:
+                current = sp
+                if cell_gap > 1e-4:
+                    current = current.buffer(-cell_gap / 2.0)
+                    if current.is_empty or current.area <= 1e-4:
+                        continue
+
+                if corner_radius > 1e-4:
+                    eroded = current.buffer(-corner_radius, join_style=2)
+                    if not eroded.is_empty and eroded.area > 1e-4:
+                        current = eroded.buffer(corner_radius, join_style=1)
                 if current.is_empty or current.area <= 1e-4:
                     continue
 
-            if smoothness > 1e-3:
-                current = chaikin_smooth_polygon(current, smoothness=smoothness)
+                if isinstance(current, Polygon):
+                    coords = [[round(float(c[0]), 4), round(float(c[1]), 4)] for c in current.exterior.coords]
+                    if len(coords) >= 4:
+                        result_coords.append(coords)
+                elif isinstance(current, (MultiPolygon, GeometryCollection)):
+                    for part in current.geoms:
+                        if isinstance(part, Polygon) and part.area > 1e-4:
+                            coords = [[round(float(c[0]), 4), round(float(c[1]), 4)] for c in part.exterior.coords]
+                            if len(coords) >= 4:
+                                result_coords.append(coords)
 
-            if isinstance(current, Polygon):
-                coords = [[round(float(c[0]), 4), round(float(c[1]), 4)] for c in current.exterior.coords]
+            return result_coords
+
+    else:
+        # ====================================================
+        # SPLINE MODE (Organic continuous curves & rounded cells)
+        # ====================================================
+        if is_seamless:
+            current = poly
+            if cell_gap > 1e-4:
+                current = current.buffer(-cell_gap / 2.0, join_style=2)
+                if current.is_empty or current.area <= 1e-4:
+                    return []
+
+            current = organic_smooth_polygon(
+                current,
+                smoothness=smoothness,
+                corner_radius=corner_radius,
+                cell_size=cell_size,
+                spline_type=spline_type
+            )
+            if current.is_empty or current.area <= 1e-4:
+                return []
+
+            try:
+                clipped = current.intersection(effective_boundary)
+            except Exception:
+                clipped = current.buffer(0).intersection(effective_boundary.buffer(0))
+
+            if clipped.is_empty or clipped.area <= 1e-4:
+                return []
+
+            sub_polys = []
+            if isinstance(clipped, Polygon):
+                sub_polys = [clipped]
+            elif isinstance(clipped, (MultiPolygon, GeometryCollection)):
+                for g in clipped.geoms:
+                    if isinstance(g, Polygon) and g.area > 1e-4:
+                        sub_polys.append(g)
+
+            result_coords = []
+            for sp in sub_polys:
+                coords = [[round(float(c[0]), 4), round(float(c[1]), 4)] for c in sp.exterior.coords]
                 if len(coords) >= 4:
                     result_coords.append(coords)
-            elif isinstance(current, (MultiPolygon, GeometryCollection)):
-                for part in current.geoms:
-                    if isinstance(part, Polygon) and part.area > 1e-4:
-                        coords = [[round(float(c[0]), 4), round(float(c[1]), 4)] for c in part.exterior.coords]
-                        if len(coords) >= 4:
-                            result_coords.append(coords)
+            return result_coords
 
-        return result_coords
+        else:
+            # Standard non-seamless mode
+            try:
+                clipped = poly.intersection(effective_boundary)
+            except Exception:
+                clipped = poly.buffer(0).intersection(effective_boundary.buffer(0))
+
+            if clipped.is_empty or clipped.area <= 1e-4:
+                return []
+
+            sub_polys = []
+            if isinstance(clipped, Polygon):
+                sub_polys = [clipped]
+            elif isinstance(clipped, (MultiPolygon, GeometryCollection)):
+                for g in clipped.geoms:
+                    if isinstance(g, Polygon) and g.area > 1e-4:
+                        sub_polys.append(g)
+
+            result_coords = []
+
+            for sp in sub_polys:
+                current = sp
+                if cell_gap > 1e-4:
+                    current = current.buffer(-cell_gap / 2.0, join_style=2)
+                    if current.is_empty or current.area <= 1e-4:
+                        continue
+
+                current = organic_smooth_polygon(
+                    current,
+                    smoothness=smoothness,
+                    corner_radius=corner_radius,
+                    cell_size=cell_size,
+                    spline_type=spline_type
+                )
+                if current.is_empty or current.area <= 1e-4:
+                    continue
+
+                if isinstance(current, Polygon):
+                    coords = [[round(float(c[0]), 4), round(float(c[1]), 4)] for c in current.exterior.coords]
+                    if len(coords) >= 4:
+                        result_coords.append(coords)
+                elif isinstance(current, (MultiPolygon, GeometryCollection)):
+                    for part in current.geoms:
+                        if isinstance(part, Polygon) and part.area > 1e-4:
+                            coords = [[round(float(c[0]), 4), round(float(c[1]), 4)] for c in part.exterior.coords]
+                            if len(coords) >= 4:
+                                result_coords.append(coords)
+
+            return result_coords
 
 
-def chaikin_smooth_polygon(poly: Polygon, smoothness: float = 0.0, iterations: int = 3) -> Polygon:
+def resample_ring(ext, num_points: int = 36) -> np.ndarray:
+    """Resample polygon exterior ring into equidistant points for smooth organic curvature."""
+    total_len = ext.length
+    if total_len <= 1e-4:
+        return np.array(ext.coords)
+    dists = np.linspace(0, total_len, num_points, endpoint=False)
+    pts = np.array([[ext.interpolate(d).x, ext.interpolate(d).y] for d in dists])
+    return pts
+
+
+def chaikin_pass(pts: np.ndarray, alpha: float = 0.15) -> np.ndarray:
+    """Single Chaikin corner-cutting smoothing step on cyclic point list."""
+    n = len(pts)
+    new_pts = []
+    for i in range(n):
+        p0 = pts[i]
+        p1 = pts[(i + 1) % n]
+        new_pts.append((1.0 - alpha) * p0 + alpha * p1)
+        new_pts.append(alpha * p0 + (1.0 - alpha) * p1)
+    return np.array(new_pts)
+
+
+def catmull_rom_spline(control_points: List[tuple], num_samples_per_seg: int = 5, alpha: float = 0.5) -> Polygon:
     """
-    Apply Chaikin corner-cutting subdivision to smooth sharp polygon edges
-    into an organic curved pebble/spline contour.
+    Generate a closed Centripetal Catmull-Rom spline through a cyclic list of control points.
+    Guarantees C1 continuity and passes smoothly through control points without self-loops or overshoot.
     """
-    if smoothness <= 0.001 or poly.is_empty:
+    pts = np.array(control_points)
+    n = len(pts)
+    if n < 4:
+        return Polygon(control_points)
+
+    curve = []
+    for i in range(n):
+        p0 = pts[(i - 1) % n]
+        p1 = pts[i]
+        p2 = pts[(i + 1) % n]
+        p3 = pts[(i + 2) % n]
+
+        def tj(ti, pi, pj):
+            d = np.linalg.norm(pj - pi)
+            return ti + (d ** alpha if d > 1e-6 else 1e-4)
+
+        t0 = 0.0
+        t1 = tj(t0, p0, p1)
+        t2 = tj(t1, p1, p2)
+        t3 = tj(t2, p2, p3)
+
+        t_vals = np.linspace(t1, t2, num_samples_per_seg, endpoint=False)
+        for val in t_vals:
+            A1 = (t1 - val) / max(1e-5, t1 - t0) * p0 + (val - t0) / max(1e-5, t1 - t0) * p1
+            A2 = (t2 - val) / max(1e-5, t2 - t1) * p1 + (val - t1) / max(1e-5, t2 - t1) * p2
+            A3 = (t3 - val) / max(1e-5, t3 - t2) * p2 + (val - t2) / max(1e-5, t3 - t2) * p3
+
+            B1 = (t2 - val) / max(1e-5, t2 - t0) * A1 + (val - t0) / max(1e-5, t2 - t0) * A2
+            B2 = (t3 - val) / max(1e-5, t3 - t1) * A2 + (val - t1) / max(1e-5, t3 - t1) * A3
+
+            C = (t2 - val) / max(1e-5, t2 - t1) * B1 + (val - t1) / max(1e-5, t2 - t1) * B2
+            curve.append((round(float(C[0]), 4), round(float(C[1]), 4)))
+
+    curve.append(curve[0])
+    return Polygon(curve)
+
+
+def organic_smooth_polygon(
+    poly: Polygon,
+    smoothness: float = 0.0,
+    corner_radius: float = 0.0,
+    cell_size: float = 15.0,
+    spline_type: str = "pebble"
+) -> Polygon:
+    """
+    Apply organic smoothing and corner rounding in Spline mode.
+    
+    Subtypes:
+      - 'pebble' (조약돌형, default): Full organic rounded cellular contours using morphological
+        round closing with proportional inradius scaling and Chaikin subdivision.
+      - 'lattice' (래티스형): Tensioned Catmull-Rom spline lattice that maintains deep corner
+        penetration (uniform ribs) while organically curving edge segments.
+      - 'dual_buffer' (듀얼버퍼형): Deep mitre negative offset + positive round expansion + round contraction.
+      - 'metaball' (메타볼형): Multi-ray polar potential field with Log-Sum-Exp Soft-Min surface tension.
+    """
+    if poly.is_empty or poly.area <= 1e-6:
         return poly
 
-    ext_coords = list(poly.exterior.coords)
-    if len(ext_coords) < 4:
+    s_val = smoothness / 100.0 if smoothness > 1.0 else smoothness
+    s_val = max(0.0, min(1.0, s_val))
+
+    if s_val <= 0.001 and corner_radius <= 0.001:
         return poly
 
-    pts = np.array(ext_coords[:-1], dtype=np.float64)
-    # alpha controls the cutting depth: from 0.0 to 0.25
-    alpha = 0.25 * min(1.0, max(0.0, smoothness))
+    current = poly
+    st = str(spline_type).lower()
 
-    for _ in range(iterations):
-        n = len(pts)
-        new_pts = []
-        for i in range(n):
-            p0 = pts[i]
-            p1 = pts[(i + 1) % n]
-            q = (1.0 - alpha) * p0 + alpha * p1
-            r = alpha * p0 + (1.0 - alpha) * p1
-            new_pts.append(q)
-            new_pts.append(r)
-        pts = np.array(new_pts)
+    if st == "lattice":
+        # ====================================================
+        # LATTICE MODE (래티스형):
+        # Deep corner penetration + Centripetal Catmull-Rom spline curves
+        # ====================================================
+        approx_inradius = max(0.5, np.sqrt(max(1.0, current.area) / np.pi))
+        max_fillet = min(cell_size * 0.22, approx_inradius * 0.55, 3.5)
+        r_fillet = max(corner_radius, 0.4 + (max_fillet - 0.4) * s_val)
 
-    smoothed_coords = pts.tolist()
-    smoothed_coords.append(smoothed_coords[0])
-    try:
-        smoothed_poly = Polygon(smoothed_coords)
-        if not smoothed_poly.is_valid:
-            smoothed_poly = shapely.make_valid(smoothed_poly)
-            if isinstance(smoothed_poly, MultiPolygon):
-                smoothed_poly = max(smoothed_poly.geoms, key=lambda g: g.area)
-        return smoothed_poly if isinstance(smoothed_poly, Polygon) and smoothed_poly.area > 1e-4 else poly
-    except Exception:
-        return poly
+        if r_fillet > 1e-4:
+            r_try = r_fillet
+            eroded = None
+            for _ in range(5):
+                eroded = current.buffer(-r_try, join_style=2)
+                if not eroded.is_empty and eroded.area > 1e-4:
+                    break
+                r_try *= 0.60
+
+            if eroded is not None and not eroded.is_empty and eroded.area > 1e-4:
+                if isinstance(eroded, MultiPolygon):
+                    eroded = max(eroded.geoms, key=lambda g: g.area)
+                dilated = eroded.buffer(r_try, join_style=1)
+                if isinstance(dilated, MultiPolygon):
+                    dilated = max(dilated.geoms, key=lambda g: g.area)
+                current = dilated
+
+        if s_val > 0.05 and isinstance(current, Polygon) and not current.is_empty:
+            ext = current.exterior
+            num_ctrl = max(10, min(24, int(round(ext.length / (cell_size * 0.35 * (1.25 - 0.45 * s_val))))))
+            dists = np.linspace(0, ext.length, num_ctrl, endpoint=False)
+            ctrl_pts = [ext.interpolate(d).coords[0] for d in dists]
+            try:
+                sp = catmull_rom_spline(ctrl_pts, num_samples_per_seg=5, alpha=0.5)
+                if not sp.is_valid:
+                    sp = shapely.make_valid(sp)
+                    if isinstance(sp, MultiPolygon):
+                        sp = max(sp.geoms, key=lambda g: g.area)
+                if isinstance(sp, Polygon) and sp.area > 1e-4:
+                    current = sp
+            except Exception:
+                pass
+
+        return current
+
+    elif st in ("dual_buffer", "dualbuffer", "dual"):
+        # ====================================================
+        # DUAL-BUFFER MODE (형태학적 듀얼 버퍼 라운딩):
+        # Deep mitre negative offset + positive round expansion + round contraction
+        # ====================================================
+        approx_inradius = max(0.5, np.sqrt(max(1.0, current.area) / np.pi))
+        max_erode = min(cell_size * 0.28, approx_inradius * 0.65)
+        r_erode = max(corner_radius, 0.3 + (max_erode - 0.3) * s_val)
+
+        r_try = r_erode
+        eroded = None
+        for _ in range(5):
+            eroded = current.buffer(-r_try, join_style=2)
+            if not eroded.is_empty and eroded.area > 1e-4:
+                break
+            r_try *= 0.60
+
+        if eroded is not None and not eroded.is_empty and eroded.area > 1e-4:
+            if isinstance(eroded, MultiPolygon):
+                eroded = max(eroded.geoms, key=lambda g: g.area)
+
+            delta = r_try * 0.25 * s_val
+            dilated = eroded.buffer(r_try + delta, join_style=1)
+            if isinstance(dilated, MultiPolygon):
+                dilated = max(dilated.geoms, key=lambda g: g.area)
+
+            if delta > 1e-4:
+                contracted = dilated.buffer(-delta, join_style=1)
+                if isinstance(contracted, MultiPolygon):
+                    contracted = max(contracted.geoms, key=lambda g: g.area)
+            else:
+                contracted = dilated
+
+            try:
+                clipped = contracted.intersection(current)
+                if isinstance(clipped, MultiPolygon):
+                    clipped = max(clipped.geoms, key=lambda g: g.area)
+                if isinstance(clipped, Polygon) and clipped.area > 1e-4:
+                    current = clipped
+                else:
+                    current = contracted
+            except Exception:
+                current = contracted
+
+        return current
+
+    elif st in ("metaball", "sdf", "skeleton"):
+        # ====================================================
+        # METABALL / SDF SKELETON MODE (Log-Sum-Exp Soft-Min 등치선):
+        # Continuous C-inf potential field avoiding any stepped notches or inward dents
+        # ====================================================
+        if not isinstance(current, Polygon) or current.is_empty:
+            return current
+
+        cx, cy = current.centroid.x, current.centroid.y
+        verts = np.array(current.exterior.coords)
+        if len(verts) < 4:
+            return current
+
+        a = verts[:-1]
+        b = verts[1:]
+        edge_vec = b - a
+        edge_len = np.hypot(edge_vec[:, 0], edge_vec[:, 1])
+        valid_edges = edge_len > 1e-4
+        if not np.any(valid_edges):
+            return current
+
+        a = a[valid_edges]
+        b = b[valid_edges]
+        edge_vec = edge_vec[valid_edges]
+        edge_len = edge_len[valid_edges]
+
+        tx = edge_vec[:, 0] / edge_len
+        ty = edge_vec[:, 1] / edge_len
+        nx = -ty
+        ny = tx
+        dot_c = (cx - a[:, 0]) * nx + (cy - a[:, 1]) * ny
+        flip = dot_c < 0
+        nx = np.where(flip, -nx, nx)
+        ny = np.where(flip, -ny, ny)
+        D0 = (cx - a[:, 0]) * nx + (cy - a[:, 1]) * ny
+
+        # Raycast across 64 radial directions
+        n_rays = 64
+        angles = np.linspace(0, 2.0 * np.pi, n_rays, endpoint=False)
+        dx = np.cos(angles)
+        dy = np.sin(angles)
+        proj = -(dx[:, None] * nx[None, :] + dy[:, None] * ny[None, :])
+
+        # Beta controls softness: higher beta = crisp corners, lower beta = wide organic curves
+        # At s_val=0.0 (0% smoothness): beta=2.80 (crisp regular corners)
+        # At s_val=1.0 (100% smoothness): beta=0.45 (deeply rounded organic curvature)
+        beta = 0.45 + (1.0 - s_val) * 2.35
+        target_gap = max(0.05, corner_radius * 0.3)
+
+        r_low = np.zeros(n_rays)
+        r_high = np.full(n_rays, max(cell_size * 2.0, 50.0))
+
+        for _ in range(12):
+            r_mid = 0.5 * (r_low + r_high)
+            D_vals = D0[None, :] - r_mid[:, None] * proj
+            max_neg = np.max(-beta * D_vals, axis=1, keepdims=True)
+            lse = max_neg.squeeze() + np.log(np.sum(np.exp(-beta * D_vals - max_neg), axis=1))
+            soft_min = -lse / beta
+            too_small = soft_min > target_gap
+            r_low = np.where(too_small, r_mid, r_low)
+            r_high = np.where(too_small, r_high, r_mid)
+
+        pts = np.column_stack([cx + r_low * dx, cy + r_low * dy])
+        pts = np.vstack([pts, pts[0]])
+        try:
+            res_poly = Polygon(pts)
+            if not res_poly.is_valid:
+                res_poly = shapely.make_valid(res_poly)
+                if isinstance(res_poly, MultiPolygon):
+                    res_poly = max(res_poly.geoms, key=lambda g: g.area)
+            if isinstance(res_poly, Polygon) and res_poly.area > 1e-4:
+                # Chaikin pass to eliminate discrete angular sampling facets
+                ring_pts = resample_ring(res_poly.exterior, num_points=36)
+                for _ in range(2):
+                    ring_pts = chaikin_pass(ring_pts, alpha=0.15)
+                smooth_coords = ring_pts.tolist()
+                smooth_coords.append(smooth_coords[0])
+                current = Polygon(smooth_coords)
+        except Exception:
+            pass
+
+        return current
+
+    else:
+        # ====================================================
+        # PEBBLE MODE (조약돌형 - Default):
+        # Morphological round closing + Chaikin organic cellular contours
+        # ====================================================
+        approx_inradius = max(0.5, np.sqrt(max(1.0, current.area) / np.pi))
+        max_radius = min(cell_size * 0.35, approx_inradius * 0.85)
+
+        r_smooth = max_radius * s_val if s_val > 0.001 else 0.0
+        effective_r = max(corner_radius, r_smooth)
+
+        if effective_r > 1e-4:
+            r_try = effective_r
+            for _ in range(3):
+                eroded = current.buffer(-r_try, join_style=1)
+                if not eroded.is_empty and eroded.area > 1e-4:
+                    break
+                r_try *= 0.5
+
+            if not eroded.is_empty and eroded.area > 1e-4:
+                if isinstance(eroded, MultiPolygon):
+                    eroded = max(eroded.geoms, key=lambda g: g.area)
+                dilated = eroded.buffer(r_try, join_style=1)
+                if isinstance(dilated, MultiPolygon):
+                    dilated = max(dilated.geoms, key=lambda g: g.area)
+                current = dilated
+
+        if s_val > 0.01 and isinstance(current, Polygon) and not current.is_empty:
+            pts = resample_ring(current.exterior, num_points=36)
+            alpha = 0.15 * s_val
+            for _ in range(2):
+                pts = chaikin_pass(pts, alpha=alpha)
+            coords = pts.tolist()
+            coords.append(coords[0])
+            try:
+                smoothed = Polygon(coords)
+                if not smoothed.is_valid:
+                    smoothed = shapely.make_valid(smoothed)
+                    if isinstance(smoothed, MultiPolygon):
+                        smoothed = max(smoothed.geoms, key=lambda g: g.area)
+                if isinstance(smoothed, Polygon) and smoothed.area > 1e-4:
+                    current = smoothed
+            except Exception:
+                pass
+
+        return current
 
 
 def generate_seed_points(
@@ -403,6 +778,8 @@ def generate_voronoi_pattern(
     smoothness = float(params.get("smoothness", 0.0))
     if smoothness > 1.0:
         smoothness = smoothness / 100.0
+    cell_style = str(params.get("cell_style", "line")).lower()
+    spline_type = str(params.get("spline_type", "pebble")).lower()
     seamless = seamless or bool(params.get("seamless", False))
 
     # Apply boundary_offset
@@ -515,7 +892,10 @@ def generate_voronoi_pattern(
             cell_gap=cell_gap,
             corner_radius=corner_radius,
             is_seamless=seamless,
-            smoothness=smoothness
+            smoothness=smoothness,
+            cell_size=cell_size,
+            cell_style=cell_style,
+            spline_type=spline_type
         )
 
         for coords in processed_coords_list:
@@ -542,6 +922,8 @@ def generate_hexagonal_pattern(
     smoothness = float(params.get("smoothness", 0.0))
     if smoothness > 1.0:
         smoothness = smoothness / 100.0
+    cell_style = str(params.get("cell_style", "line")).lower()
+    spline_type = str(params.get("spline_type", "pebble")).lower()
     n_points = int(params.get("n_points", 50))
 
     density = float(params.get("density", 0.0))
@@ -644,7 +1026,10 @@ def generate_hexagonal_pattern(
                     cell_gap=cell_gap,
                     corner_radius=corner_radius,
                     is_seamless=True,
-                    smoothness=smoothness
+                    smoothness=smoothness,
+                    cell_size=cell_size,
+                    cell_style=cell_style,
+                    spline_type=spline_type
                 )
                 if processed:
                     seed_pt = [round(center_x, 4), round(center_y, 4)]
@@ -696,7 +1081,10 @@ def generate_hexagonal_pattern(
                 cell_gap=cell_gap,
                 corner_radius=corner_radius,
                 is_seamless=False,
-                smoothness=smoothness
+                smoothness=smoothness,
+                cell_size=cell_size,
+                cell_style=cell_style,
+                spline_type=spline_type
             )
             if processed:
                 seed_pt = [round(center_x, 4), round(center_y, 4)]
@@ -726,6 +1114,8 @@ def generate_triangular_pattern(
     smoothness = float(params.get("smoothness", 0.0))
     if smoothness > 1.0:
         smoothness = smoothness / 100.0
+    cell_style = str(params.get("cell_style", "line")).lower()
+    spline_type = str(params.get("spline_type", "pebble")).lower()
     n_points = int(params.get("n_points", 50))
 
     density = float(params.get("density", 0.0))
@@ -818,7 +1208,10 @@ def generate_triangular_pattern(
                         cell_gap=cell_gap,
                         corner_radius=corner_radius,
                         is_seamless=True,
-                        smoothness=smoothness
+                        smoothness=smoothness,
+                        cell_size=cell_size,
+                        cell_style=cell_style,
+                        spline_type=spline_type
                     )
                     if processed:
                         c_rot = rotate_point(up_centroid[0], up_centroid[1], cx, cy, rotation)
@@ -852,7 +1245,10 @@ def generate_triangular_pattern(
                         cell_gap=cell_gap,
                         corner_radius=corner_radius,
                         is_seamless=True,
-                        smoothness=smoothness
+                        smoothness=smoothness,
+                        cell_size=cell_size,
+                        cell_style=cell_style,
+                        spline_type=spline_type
                     )
                     if processed:
                         c_rot = rotate_point(down_centroid[0], down_centroid[1], cx, cy, rotation)
@@ -906,7 +1302,10 @@ def generate_triangular_pattern(
                     cell_gap=cell_gap,
                     corner_radius=corner_radius,
                     is_seamless=False,
-                    smoothness=smoothness
+                    smoothness=smoothness,
+                    cell_size=cell_size,
+                    cell_style=cell_style,
+                    spline_type=spline_type
                 )
                 if processed:
                     c_rot = rotate_point(up_centroid[0], up_centroid[1], cx, cy, rotation)
@@ -940,7 +1339,10 @@ def generate_triangular_pattern(
                     cell_gap=cell_gap,
                     corner_radius=corner_radius,
                     is_seamless=False,
-                    smoothness=smoothness
+                    smoothness=smoothness,
+                    cell_size=cell_size,
+                    cell_style=cell_style,
+                    spline_type=spline_type
                 )
                 if processed:
                     c_rot = rotate_point(down_centroid[0], down_centroid[1], cx, cy, rotation)
@@ -971,6 +1373,8 @@ def generate_square_pattern(
     smoothness = float(params.get("smoothness", 0.0))
     if smoothness > 1.0:
         smoothness = smoothness / 100.0
+    cell_style = str(params.get("cell_style", "line")).lower()
+    spline_type = str(params.get("spline_type", "pebble")).lower()
     n_points = int(params.get("n_points", 50))
 
     density = float(params.get("density", 0.0))
@@ -1063,7 +1467,10 @@ def generate_square_pattern(
                     cell_gap=cell_gap,
                     corner_radius=corner_radius,
                     is_seamless=True,
-                    smoothness=smoothness
+                    smoothness=smoothness,
+                    cell_size=cell_size,
+                    cell_style=cell_style,
+                    spline_type=spline_type
                 )
                 if processed:
                     c_rot = rotate_point(center_x, center_y, cx, cy, rotation)
@@ -1118,7 +1525,10 @@ def generate_square_pattern(
                 cell_gap=cell_gap,
                 corner_radius=corner_radius,
                 is_seamless=False,
-                smoothness=smoothness
+                smoothness=smoothness,
+                cell_size=cell_size,
+                cell_style=cell_style,
+                spline_type=spline_type
             )
             if processed:
                 c_rot = rotate_point(center_x, center_y, cx, cy, rotation)

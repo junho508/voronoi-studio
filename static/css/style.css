@@ -926,6 +926,64 @@ input[type="number"] {
   color: var(--accent-teal);
 }
 
+/* Edge / Cell Style Selector (Line vs Spline) */
+.cell-style-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.style-pill {
+  position: relative;
+  cursor: pointer;
+}
+
+.style-pill input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.style-pill .pill-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--border-radius-sm);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+}
+
+.style-pill .pill-content svg {
+  width: 15px;
+  height: 15px;
+  opacity: 0.7;
+}
+
+.style-pill:hover .pill-content {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-main);
+}
+
+.style-pill input[type="radio"]:checked + .pill-content {
+  background: rgba(124, 106, 255, 0.18);
+  border-color: var(--accent-purple);
+  color: #ffffff;
+  box-shadow: 0 0 12px var(--accent-purple-glow);
+}
+
+.style-pill input[type="radio"]:checked + .pill-content svg {
+  opacity: 1;
+  color: var(--accent-teal);
+}
+
 /* Checkbox Style */
 .checkbox-group {
   margin: 4px 0;

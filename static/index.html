@@ -363,6 +363,80 @@
               <input type="range" class="custom-range" id="input-cell-gap" min="0" max="10" value="0.5" step="0.1">
             </div>
 
+            <!-- 선 스타일 (Line vs Spline) -->
+            <div class="control-group" id="group-cell-style">
+              <div class="control-header">
+                <label>선 스타일 (Edge Style)</label>
+              </div>
+              <div class="cell-style-grid" id="cell-style-selector">
+                <label class="style-pill active" id="label-style-line">
+                  <input type="radio" name="cell_style" value="line" checked>
+                  <div class="pill-content">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="4" y1="20" x2="4" y2="4"/>
+                      <line x1="4" y1="4" x2="20" y2="4"/>
+                    </svg>
+                    <span>Line 모드</span>
+                  </div>
+                </label>
+                <label class="style-pill" id="label-style-spline">
+                  <input type="radio" name="cell_style" value="spline">
+                  <div class="pill-content">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M3 17c4-8 10-8 14-2s4 6 4 2"/>
+                    </svg>
+                    <span>Spline 모드</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <!-- Spline 곡선 세부 유형 (조약돌형, 래티스형, 듀얼버퍼, 메타볼) -->
+            <div class="control-group" id="group-spline-type" style="display: none;">
+              <div class="control-header">
+                <label>곡선 세부 유형 (Spline Type)</label>
+              </div>
+              <div class="cell-style-grid" id="spline-type-selector">
+                <label class="style-pill active" id="label-spline-pebble">
+                  <input type="radio" name="spline_type" value="pebble" checked>
+                  <div class="pill-content">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="7"/>
+                    </svg>
+                    <span>조약돌형</span>
+                  </div>
+                </label>
+                <label class="style-pill" id="label-spline-lattice">
+                  <input type="radio" name="spline_type" value="lattice">
+                  <div class="pill-content">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5" />
+                    </svg>
+                    <span>래티스형</span>
+                  </div>
+                </label>
+                <label class="style-pill" id="label-spline-dual-buffer">
+                  <input type="radio" name="spline_type" value="dual_buffer">
+                  <div class="pill-content">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="4" y="4" width="16" height="16" rx="5" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    <span>듀얼버퍼</span>
+                  </div>
+                </label>
+                <label class="style-pill" id="label-spline-metaball">
+                  <input type="radio" name="spline_type" value="metaball">
+                  <div class="pill-content">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 3a4 4 0 0 0-4 4c0 1.5.8 2.8 2 3.5v3c-1.2.7-2 2-2 3.5a4 4 0 1 0 8 0c0-1.5-.8-2.8-2-3.5v-3c1.2-.7 2-2 2-3.5a4 4 0 0 0-4-4z" />
+                    </svg>
+                    <span>메타볼</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
             <!-- 모서리 라운드 (Corner Radius) -->
             <div class="control-group" id="group-corner-radius">
               <div class="control-header">
@@ -375,18 +449,18 @@
               <input type="range" class="custom-range" id="input-corner-radius" min="0" max="10" value="0" step="0.1">
             </div>
 
-            <!-- 곡선 부드러움 (Smoothness) -->
-            <div class="control-group" id="group-smoothness">
+            <!-- 곡선 부드러움 (Smoothness - Spline 모드 전용) -->
+            <div class="control-group" id="group-smoothness" style="display: none;">
               <div class="control-header">
                 <label for="input-smoothness">곡선 부드러움 (Smoothness)</label>
                 <div class="num-stepper">
-                  <input type="number" id="input-smoothness-num" value="0" min="0" max="100" step="1">
+                  <input type="number" id="input-smoothness-num" value="50" min="0" max="100" step="1">
                   <span class="unit-tag">%</span>
                 </div>
               </div>
-              <input type="range" class="custom-range" id="input-smoothness" min="0" max="100" value="0" step="1">
+              <input type="range" class="custom-range" id="input-smoothness" min="0" max="100" value="50" step="1">
               <div class="range-labels">
-                <span>0% = 각진형</span>
+                <span>0% = 기본 곡선</span>
                 <span>100% = 조약돌 유기 곡선</span>
               </div>
             </div>

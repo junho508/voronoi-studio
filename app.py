@@ -164,6 +164,8 @@ def api_generate():
         seamless = bool(data.get('seamless', False))
         density = float(data.get('density', 0.0))
         lloyd_iterations = int(data.get('lloyd_iterations', 0))
+        cell_style = str(data.get("cell_style", "line")).lower()
+        spline_type = str(data.get("spline_type", "pebble")).lower()
         params = {
             "n_points": int(data.get("n_points", 50)),
             "density": density,
@@ -175,6 +177,8 @@ def api_generate():
             "cell_gap": float(data.get("cell_gap", 0.0)),
             "corner_radius": float(data.get("corner_radius", 0.0)),
             "smoothness": float(data.get("smoothness", 0.0)),
+            "cell_style": cell_style,
+            "spline_type": spline_type,
             "pattern_type": str(data.get("pattern_type", "voronoi")),
             "seed_points": data.get("seed_points"),
             "cell_size": float(data.get("cell_size", 0.0)),
@@ -294,6 +298,8 @@ def api_export_dxf():
 
         include_boundary = bool(data.get("include_boundary", True))
         corner_radius = float(data.get('corner_radius', 0.0))
+        cell_style = str(data.get("cell_style") or app_state.get("last_params", {}).get("cell_style", "line")).lower()
+        spline_type = str(data.get("spline_type") or app_state.get("last_params", {}).get("spline_type", "pebble")).lower()
         filename = data.get("filename") or app_state.get("filename", "voronoi_pattern.dxf")
 
         if not filename.lower().endswith(".dxf"):
@@ -309,7 +315,9 @@ def api_export_dxf():
 
         options = {
             "include_boundary": include_boundary,
-            "corner_radius": corner_radius
+            "corner_radius": corner_radius,
+            "cell_style": cell_style,
+            "spline_type": spline_type
         }
         export_to_dxf(cells, boundaries, export_filepath, options=options)
 

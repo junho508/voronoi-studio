@@ -268,6 +268,7 @@ def export_to_dxf(
     include_boundary = bool(options.get("include_boundary", True))
     dxf_version = str(options.get("dxf_version", "R2010"))
     corner_radius = float(options.get("corner_radius", 0.0))
+    cell_style = str(options.get("cell_style", "line")).lower()
 
     target_dir = os.path.dirname(os.path.abspath(output_path))
     if target_dir and not os.path.exists(target_dir):
@@ -289,8 +290,8 @@ def export_to_dxf(
         if len(clean_pts) < 3:
             continue
 
-        if corner_radius > 0.1 and len(clean_pts) < 30:
-            # Export with true ARC entities for rounded corners
+        if cell_style != "spline" and corner_radius > 0.1:
+            # Export with true ARC and LINE entities for rounded corners
             _add_cell_as_arcs(msp, clean_pts, corner_radius, "VORONOI_PATTERN")
         else:
             # High-resolution closed polyline for smooth organic or standard cells

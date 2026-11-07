@@ -359,6 +359,22 @@ class VoronoiApp {
       });
     });
 
+    // Cell / Edge Style Radios (Line vs Spline)
+    const styleRadios = document.querySelectorAll('input[name="cell_style"]');
+    styleRadios.forEach((radio) => {
+      radio.addEventListener('change', (e) => {
+        this.onCellStyleChange(e.target.value);
+      });
+    });
+
+    // Spline Subtype Radios (Pebble vs Lattice)
+    const splineTypeRadios = document.querySelectorAll('input[name="spline_type"]');
+    splineTypeRadios.forEach((radio) => {
+      radio.addEventListener('change', () => {
+        this.scheduleAutoUpdate();
+      });
+    });
+
     // Synchronize Range Sliders & Number Steppers
     this.syncRangeNumber('input-density', 'input-density-num', () => this.resetManualEdits());
     this.syncRangeNumber('input-cell-size', 'input-cell-size-num', () => {
@@ -458,6 +474,33 @@ class VoronoiApp {
     } else {
       hint.textContent = `예상 약 ${approxCount}개`;
     }
+  }
+
+  /**
+   * Called when cell edge style changes (Line vs Spline)
+   * @param {string} style - 'line' | 'spline'
+   */
+  onCellStyleChange(style) {
+    const groupSmoothness = document.getElementById('group-smoothness');
+    const groupSplineType = document.getElementById('group-spline-type');
+    if (groupSplineType) {
+      groupSplineType.style.display = (style === 'spline') ? 'block' : 'none';
+    }
+    if (groupSmoothness) {
+      if (style === 'spline') {
+        groupSmoothness.style.display = 'block';
+        // If smoothness is currently 0, initialize to 50 so user immediately sees smooth curves
+        const smInput = document.getElementById('input-smoothness');
+        const smNum = document.getElementById('input-smoothness-num');
+        if (smInput && parseFloat(smInput.value) === 0) {
+          smInput.value = '50';
+          if (smNum) smNum.value = '50';
+        }
+      } else {
+        groupSmoothness.style.display = 'none';
+      }
+    }
+    this.scheduleAutoUpdate();
   }
 
   /**
@@ -629,6 +672,8 @@ class VoronoiApp {
     const boundaryCoords = selected.length === 1 ? selected[0].coords : selected.map((b) => b.coords);
 
     const cornerRadius = parseFloat(document.getElementById('input-corner-radius')?.value) || 0;
+    const cellStyle = document.querySelector('input[name="cell_style"]:checked')?.value || 'line';
+    const splineType = document.querySelector('input[name="spline_type"]:checked')?.value || 'pebble';
 
     const payload = {
       cells: this.state.cells,
@@ -636,6 +681,8 @@ class VoronoiApp {
       include_boundary: includeBoundary,
       filename: filename,
       corner_radius: cornerRadius,
+      cell_style: cellStyle,
+      spline_type: splineType,
     };
 
     this.showLoading(true, 'DXF 파일 내보내는 중...');
@@ -662,6 +709,12 @@ class VoronoiApp {
     const patternTypeEl = document.querySelector('input[name="pattern_type"]:checked');
     const patternType = patternTypeEl ? patternTypeEl.value : 'voronoi';
 
+    const cellStyleEl = document.querySelector('input[name="cell_style"]:checked');
+    const cellStyle = cellStyleEl ? cellStyleEl.value : 'line';
+
+    const splineTypeEl = document.querySelector('input[name="spline_type"]:checked');
+    const splineType = splineTypeEl ? splineTypeEl.value : 'pebble';
+
     const density = parseFloat(document.getElementById('input-density')?.value) || 0.5;
     const cellSize = parseFloat(document.getElementById('input-cell-size')?.value) || 15;
     const seed = parseInt(document.getElementById('input-seed')?.value, 10) || 42;
@@ -683,6 +736,8 @@ class VoronoiApp {
       boundary: boundaryCoords,
       regions: selected,
       pattern_type: patternType,
+      cell_style: cellStyle,
+      spline_type: splineType,
       density: density,
       cell_size: cellSize,
       seed: seed,
@@ -1035,8 +1090,17 @@ class VoronoiApp {
 
     const smInput = document.getElementById('input-smoothness');
     const smNum = document.getElementById('input-smoothness-num');
-    if (smInput) smInput.value = '0';
-    if (smNum) smNum.value = '0';
+    if (smInput) smInput.value = '50';
+    if (smNum) smNum.value = '50';
+
+    const lineRadio = document.querySelector('input[name="cell_style"][value="line"]');
+    if (lineRadio) lineRadio.checked = true;
+    const pebbleRadio = document.querySelector('input[name="spline_type"][value="pebble"]');
+    if (pebbleRadio) pebbleRadio.checked = true;
+    const groupSmoothness = document.getElementById('group-smoothness');
+    if (groupSmoothness) groupSmoothness.style.display = 'none';
+    const groupSplineType = document.getElementById('group-spline-type');
+    if (groupSplineType) groupSplineType.style.display = 'none';
 
     // Clear canvas
     this.canvas.clearAll();
