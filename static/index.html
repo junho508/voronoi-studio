@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>보로노이 패턴 생성기 - CAD/CAM Pattern Studio</title>
+  
+  <!-- Google Fonts: Inter & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="./css/style.css">
+
+  <!-- d3-delaunay CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/d3-delaunay@6/dist/d3-delaunay.min.js"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <!-- LEFT PANEL: Controls & Settings -->
+    <aside class="left-panel">
+      <!-- App Header -->
+      <header class="app-header">
+        <div class="logo-wrapper">
+          <div class="logo-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="6,3 18,3 22,11 14,21 2,13" />
+              <circle cx="12" cy="11" r="2" fill="currentColor" />
+              <line x1="12" y1="11" x2="6" y2="3" />
+              <line x1="12" y1="11" x2="18" y2="3" />
+              <line x1="12" y1="11" x2="22" y2="11" />
+              <line x1="12" y1="11" x2="14" y2="21" />
+              <line x1="12" y1="11" x2="2" y2="13" />
+            </svg>
+          </div>
+          <div class="logo-text">
+            <div class="title-row">
+              <h1>보로노이 생성기</h1>
+              <span class="badge-pro">PRO</span>
+            </div>
+            <p class="subtitle">NX CAD/CAM 파라메트릭 패턴</p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="btn-reset" id="btn-reset-all" title="모든 패턴과 경계를 초기화합니다">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="1 4 1 10 7 10"/>
+              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+            </svg>
+            <span>새로 시작</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Tab Navigation -->
+      <nav class="tab-nav">
+        <button type="button" class="tab-btn active" data-tab="tab-boundary" id="btn-tab-boundary">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <path d="M3 9h18M9 21V9" />
+          </svg>
+          <span>경계 설정</span>
+        </button>
+        <button type="button" class="tab-btn" data-tab="tab-pattern" id="btn-tab-pattern">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="12 2 2 7 12 12 22 7 12 2" />
+            <polyline points="2 17 12 22 22 17" />
+            <polyline points="2 12 12 17 22 12" />
+          </svg>
+          <span>패턴 설정</span>
+        </button>
+        <button type="button" class="tab-btn" data-tab="tab-export" id="btn-tab-export">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          <span>내보내기</span>
+        </button>
+        <div class="tab-indicator" id="tab-indicator"></div>
+      </nav>
+
+      <!-- Scrollable Tab Content Container -->
+      <div class="panel-content-scroll">
+        <!-- ================= TAB 1: 경계 설정 ================= -->
+        <section class="tab-pane active" id="tab-boundary">
+          <div class="boundary-mode-bar" id="boundary-mode-bar">
+            <div class="mode-pill active" id="mode-pill-rect">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+              사각형 모드
+            </div>
+            <div class="mode-pill" id="mode-pill-dxf">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              DXF 모드
+            </div>
+          </div>
+          <!-- Section: 사각형 영역 -->
+          <div class="card-section">
+            <div class="section-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+              </svg>
+              <span>사각형 기본 영역</span>
+            </div>
+            <p class="section-desc">가로 및 세로 치수를 입력하여 기본 작업 영역을 설정합니다.</p>
+            
+            <div class="input-grid">
+              <div class="form-group">
+                <label for="input-rect-width">가로 너비 (Width)</label>
+                <div class="input-with-unit">
+                  <input type="number" id="input-rect-width" value="100" min="1" max="5000" step="1">
+                  <span class="unit">mm</span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="input-rect-height">세로 높이 (Height)</label>
+                <div class="input-with-unit">
+                  <input type="number" id="input-rect-height" value="100" min="1" max="5000" step="1">
+                  <span class="unit">mm</span>
+                </div>
+              </div>
+            </div>
+
+            <button type="button" class="btn btn-secondary btn-block" id="btn-apply-rect">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span>사각형 영역 적용</span>
+            </button>
+          </div>
+
+          <!-- Divider -->
+          <div class="divider-text">
+            <span>또는</span>
+          </div>
+
+          <!-- Section: DXF 파일 로드 -->
+          <div class="card-section">
+            <div class="section-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+              <span>DXF 파일 로드</span>
+            </div>
+            <p class="section-desc">NX, AutoCAD에서 내보낸 2D DXF 외곽선을 불러와 경계로 사용합니다.</p>
+
+            <!-- Drop Zone -->
+            <div class="dxf-drop-zone" id="dxf-drop-zone">
+              <div class="drop-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+              </div>
+              <span class="drop-primary">DXF 파일을 여기에 드래그하거나 클릭</span>
+              <span class="drop-secondary">닫힌 루프(Closed Loops) 자동 인식 지원</span>
+              <input type="file" id="dxf-file-input" accept=".dxf" hidden>
+            </div>
+
+            <!-- Region List (Dynamic) -->
+            <div class="region-list-container" id="region-list-wrapper" style="display: none;">
+              <div class="region-list-header">
+                <span class="region-count" id="region-count-badge">감지된 영역: 0개</span>
+                <div class="region-actions">
+                  <button type="button" class="btn-text-small" id="btn-select-all-regions">전체 선택</button>
+                  <button type="button" class="btn-text-small" id="btn-deselect-all-regions">해제</button>
+                </div>
+              </div>
+              <div class="region-list" id="region-list">
+                <!-- Injected via JavaScript -->
+              </div>
+              <button type="button" class="btn btn-primary btn-block" id="btn-apply-regions">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                <span>선택 영역 적용</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= TAB 2: 패턴 설정 ================= -->
+        <section class="tab-pane" id="tab-pattern">
+          <!-- Section: 패턴 유형 -->
+          <div class="card-section">
+            <div class="section-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+                <path d="M2 12h20" />
+              </svg>
+              <span>패턴 유형 (Pattern Type)</span>
+            </div>
+            
+            <div class="pattern-type-grid" id="pattern-type-selector">
+              <label class="pattern-pill active">
+                <input type="radio" name="pattern_type" value="voronoi" checked>
+                <div class="pill-content">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="6,3 18,3 22,11 14,21 2,13" />
+                  </svg>
+                  <span>보로노이</span>
+                </div>
+              </label>
+
+              <label class="pattern-pill">
+                <input type="radio" name="pattern_type" value="hexagon">
+                <div class="pill-content">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 21 7 21 17 12 22 3 17 3 7" />
+                  </svg>
+                  <span>육각형</span>
+                </div>
+              </label>
+
+              <label class="pattern-pill">
+                <input type="radio" name="pattern_type" value="triangle">
+                <div class="pill-content">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 22 20 2 20" />
+                  </svg>
+                  <span>삼각형</span>
+                </div>
+              </label>
+
+              <label class="pattern-pill">
+                <input type="radio" name="pattern_type" value="square">
+                <div class="pill-content">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="1" />
+                  </svg>
+                  <span>사각형</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Section: 패턴 상세 파라미터 -->
+          <div class="card-section">
+            <div class="section-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="4" y1="21" x2="4" y2="14" />
+                <line x1="4" y1="10" x2="4" y2="3" />
+                <line x1="12" y1="21" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12" y2="3" />
+                <line x1="20" y1="21" x2="20" y2="16" />
+                <line x1="20" y1="12" x2="20" y2="3" />
+                <line x1="1" y1="14" x2="7" y2="14" />
+                <line x1="9" y1="8" x2="15" y2="8" />
+                <line x1="17" y1="16" x2="23" y2="16" />
+              </svg>
+              <span>형상 파라미터 (Parameters)</span>
+            </div>
+
+            <!-- 셀 크기 (공통 제어) -->
+            <div class="control-group" id="group-cell-size">
+              <div class="control-header">
+                <label for="input-cell-size">셀 크기 (Cell Size)</label>
+                <div class="num-stepper">
+                  <input type="number" id="input-cell-size-num" value="15" min="2" max="100" step="0.5">
+                  <span class="unit-tag">mm</span>
+                </div>
+              </div>
+              <input type="range" class="custom-range" id="input-cell-size" min="2" max="100" value="15" step="0.5">
+              <div class="range-labels">
+                <span>2mm = 촘촘</span>
+                <span id="cell-size-hint" style="color: var(--accent-teal); font-weight: 600;">예상 약 50개</span>
+                <span>100mm = 거대</span>
+              </div>
+            </div>
+
+            <!-- Seed 값 -->
+            <div class="control-group" id="group-seed">
+              <div class="control-header">
+                <label for="input-seed">랜덤 시드 (Random Seed)</label>
+                <button type="button" class="btn-dice" id="btn-random-seed" title="새 시드 생성">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="2" width="20" height="20" rx="5" />
+                    <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+                    <circle cx="16" cy="16" r="1.5" fill="currentColor" />
+                    <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+                  </svg>
+                  <span>셔플</span>
+                </button>
+              </div>
+              <div class="input-with-unit full-width">
+                <input type="number" id="input-seed" value="42" min="0" max="9999" step="1">
+                <span class="unit">#</span>
+              </div>
+            </div>
+
+            <!-- Jitter (불규칙도) -->
+            <div class="control-group" id="group-jitter">
+              <div class="control-header">
+                <label for="input-jitter">Jitter (불규칙도)</label>
+                <span class="value-badge" id="val-jitter">0.70</span>
+              </div>
+              <input type="range" class="custom-range" id="input-jitter" min="0" max="1" value="0.7" step="0.01">
+              <div class="range-labels">
+                <span>0 = 정형 (Regular)</span>
+                <span>1 = 비정형 (Organic)</span>
+              </div>
+            </div>
+
+            <!-- Lloyd's 완화 반복 (Voronoi Only) -->
+            <div class="control-group" id="group-lloyd">
+              <div class="control-header">
+                <label for="input-lloyd">균형 조정 (Lloyd's Relaxation)</label>
+                <div class="num-stepper">
+                  <input type="number" id="input-lloyd-num" value="0" min="0" max="20" step="1">
+                  <span class="unit-tag">회</span>
+                </div>
+              </div>
+              <input type="range" class="custom-range" id="input-lloyd" min="0" max="20" value="0" step="1">
+              <div class="range-labels">
+                <span>0 = Jitter만 적용</span>
+                <span>20 = 균일 셀 크기</span>
+              </div>
+              <p class="section-desc" style="margin-top:4px;font-size:11px;color:var(--text-muted);">
+                반복할수록 셀 크기가 고르게 균일해집니다. Jitter와 함께 사용 시 자연스러운 유기적 형태를 만듭니다.
+              </p>
+            </div>
+
+            <!-- 회전 각도 -->
+            <div class="control-group" id="group-rotation">
+              <div class="control-header">
+                <label for="input-rotation">회전 각도 (Rotation)</label>
+                <div class="num-stepper">
+                  <input type="number" id="input-rotation-num" value="0" min="-90" max="90" step="1">
+                  <span class="unit-tag">°</span>
+                </div>
+              </div>
+              <input type="range" class="custom-range" id="input-rotation" min="-90" max="90" value="0" step="1">
+            </div>
+
+            <!-- 경계 여백 (Boundary Inset) -->
+            <div class="control-group" id="group-boundary-offset">
+              <div class="control-header">
+                <label for="input-boundary-offset">경계 여백 (Boundary Inset)</label>
+                <div class="num-stepper">
+                  <input type="number" id="input-boundary-offset-num" value="0" min="0" max="20" step="0.1">
+                  <span class="unit-tag">mm</span>
+                </div>
+              </div>
+              <input type="range" class="custom-range" id="input-boundary-offset" min="0" max="20" value="0" step="0.1">
+            </div>
+
+            <!-- 셀 간격 (Cell Gap) -->
+            <div class="control-group" id="group-cell-gap">
+              <div class="control-header">
+                <label for="input-cell-gap">셀 간격 (Cell Gap / Rib)</label>
+                <div class="num-stepper">
+                  <input type="number" id="input-cell-gap-num" value="0.5" min="0" max="10" step="0.1">
+                  <span class="unit-tag">mm</span>
+                </div>
+              </div>
+              <input type="range" class="custom-range" id="input-cell-gap" min="0" max="10" value="0.5" step="0.1">
+            </div>
+
+            <!-- 모서리 라운드 (Corner Radius) -->
+            <div class="control-group" id="group-corner-radius">
+              <div class="control-header">
+                <label for="input-corner-radius">모서리 라운드 (Fillet Radius)</label>
+                <div class="num-stepper">
+                  <input type="number" id="input-corner-radius-num" value="0" min="0" max="10" step="0.1">
+                  <span class="unit-tag">mm</span>
+                </div>
+              </div>
+              <input type="range" class="custom-range" id="input-corner-radius" min="0" max="10" value="0" step="0.1">
+            </div>
+          </div>
+
+          <div class="card-section" id="group-seamless">
+            <div class="section-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="2" width="8" height="8"/><rect x="14" y="2" width="8" height="8"/>
+                <rect x="2" y="14" width="8" height="8"/><rect x="14" y="14" width="8" height="8"/>
+              </svg>
+              <span>무한 반복 타일링</span>
+            </div>
+            <p class="section-desc">활성화 시 상하좌우 경계가 완벽히 이어지는 패턴을 생성합니다. 타일을 반복 배치할 때 끊김이 없습니다.</p>
+            <label class="toggle-switch-label">
+              <input type="checkbox" id="toggle-seamless" class="toggle-switch-input">
+              <span class="toggle-switch-track"></span>
+              <span class="toggle-switch-text">무한 반복 타일링 활성화</span>
+            </label>
+          </div>
+
+          <!-- Generation & Auto-Update Controls -->
+          <div class="card-section action-card">
+            <button type="button" class="btn btn-generate" id="btn-generate">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+              </svg>
+              <span>패턴 생성하기 (Generate)</span>
+            </button>
+
+            <div class="toggle-control">
+              <label class="switch">
+                <input type="checkbox" id="toggle-auto-update" checked>
+                <span class="slider"></span>
+              </label>
+              <span class="toggle-label">값 변경 시 자동 업데이트</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= TAB 3: 내보내기 ================= -->
+        <section class="tab-pane" id="tab-export">
+          <div class="card-section">
+            <div class="section-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span>DXF 파일 내보내기 (Export)</span>
+            </div>
+            <p class="section-desc">2D CAD 폐곡선(Closed Polylines) 형식으로 고품질 DXF를 생성합니다.</p>
+
+            <div class="form-group checkbox-group">
+              <label class="custom-checkbox-label">
+                <input type="checkbox" id="export-include-boundary" checked>
+                <span class="checkbox-box"></span>
+                <span class="checkbox-text">외곽 경계선 레이어 포함</span>
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label for="export-filename">파일 이름 (Filename)</label>
+              <div class="input-with-unit full-width">
+                <input type="text" id="export-filename" value="voronoi_pattern" placeholder="파일명 입력">
+                <span class="unit">.dxf</span>
+              </div>
+            </div>
+
+            <button type="button" class="btn btn-primary btn-block btn-large" id="btn-export-dxf">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span>DXF 내보내기 다운로드</span>
+            </button>
+          </div>
+
+          <!-- NX CAD Import Guide Card -->
+          <div class="card-section guide-card">
+            <div class="section-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="16" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12.01" y2="8" />
+              </svg>
+              <span>Siemens NX 임포트 가이드</span>
+            </div>
+            <ul class="guide-list">
+              <li>
+                <strong>1. 파일 불러오기:</strong>
+                <span><code>File &gt; Import &gt; DXF/DWG</code> 선택</span>
+              </li>
+              <li>
+                <strong>2. 옵션 설정:</strong>
+                <span>2D Wireframe to Sketch 또는 Work Part 선택</span>
+              </li>
+              <li>
+                <strong>3. 3D 모델링 활용:</strong>
+                <span>생성된 단일 폐곡선 스케치로 <strong>Extrude(돌출)</strong> 또는 <strong>Emboss(엠보스)</strong> 적용</span>
+              </li>
+              <li>
+                <strong>호환성:</strong>
+                <span>AutoCAD, SolidWorks, Rhino, Fusion 360 완벽 호환</span>
+              </li>
+            </ul>
+          </div>
+        </section>
+      </div>
+
+      <!-- Left Panel Footer (Shortcuts) -->
+      <footer class="panel-footer">
+        <div class="shortcut-tags">
+          <span class="shortcut shortcut-voronoi"><kbd>+</kbd> 씨드추가</span>
+          <span class="shortcut"><kbd>Ctrl+Z</kbd> 실행취소</span>
+          <span class="shortcut shortcut-voronoi"><kbd>Del</kbd> 셀 삭제</span>
+          <span class="shortcut shortcut-voronoi"><kbd>우클릭</kbd> 셀 삭제</span>
+          <span class="shortcut shortcut-voronoi"><kbd>Shift+클릭</kbd> 다중선택</span>
+          <span class="shortcut shortcut-regular" style="display: none;"><kbd>드래그</kbd> 위치 이동</span>
+        </div>
+      </footer>
+    </aside>
+
+    <!-- RIGHT PANEL: Canvas Studio & Viewport -->
+    <main class="right-panel">
+      <!-- Floating Canvas Toolbar -->
+      <header class="canvas-toolbar">
+
+        <div class="toolbar-group" id="toolbar-group-seeds">
+          <label class="toggle-chip" title="씨드 포인트(Seed Points) 표시 토글">
+            <input type="checkbox" id="toggle-seeds" checked>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+            </svg>
+            <span>씨드 표시</span>
+          </label>
+        </div>
+
+        <div class="toolbar-divider" id="toolbar-divider-seeds"></div>
+
+        <div class="toolbar-group">
+          <button type="button" class="tool-btn-icon" id="btn-zoom-fit" title="화면 크기에 맞춤 (Fit to Content)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+            </svg>
+          </button>
+
+          <div class="zoom-stepper">
+            <button type="button" class="tool-btn-icon" id="btn-zoom-out" title="축소 (Zoom Out)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+            <span class="zoom-level" id="zoom-display">100%</span>
+            <button type="button" class="tool-btn-icon" id="btn-zoom-in" title="확대 (Zoom In)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="toolbar-divider"></div>
+
+        <div class="toolbar-group">
+          <button type="button" class="tool-btn-icon" id="btn-undo" title="실행 취소 (Ctrl+Z)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="1 4 1 10 7 10" />
+              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="toolbar-divider"></div>
+
+        <div class="toolbar-group">
+          <label class="toggle-chip" title="무한 반복 타일링 미리보기 (2x2 타일)" id="label-tile-preview">
+            <input type="checkbox" id="toggle-tile-preview">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="2" width="9" height="9"/><rect x="13" y="2" width="9" height="9"/>
+              <rect x="2" y="13" width="9" height="9"/><rect x="13" y="13" width="9" height="9"/>
+            </svg>
+            <span>타일 미리보기</span>
+          </label>
+        </div>
+      </header>
+
+      <!-- SVG Canvas Viewport Container -->
+      <div class="canvas-wrapper" id="canvas-wrapper">
+        <svg id="main-svg" width="100%" height="100%">
+          <defs>
+            <!-- Drop shadow for selected cells -->
+            <filter id="glow-selected" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="#f43f5e" flood-opacity="0.8" />
+            </filter>
+            <!-- Drop shadow for hovered cells -->
+            <filter id="glow-hover" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#06b6d4" flood-opacity="0.6" />
+            </filter>
+            <!-- Subtle glow for seed halo -->
+            <filter id="seed-glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="1.5" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+          </defs>
+
+          <!-- Main Zoomable & Pannable Group -->
+          <g id="canvas-group">
+            <g id="grid-layer"></g>
+            <g id="boundary-layer"></g>
+            <g id="cells-layer"></g>
+            <g id="seeds-layer"></g>
+          </g>
+        </svg>
+
+        <!-- Floating Seed Tooltip -->
+        <div class="seed-tooltip" id="seed-tooltip" style="display: none;"></div>
+      </div>
+
+      <!-- Status Bar Footer -->
+      <footer class="status-bar">
+        <div class="status-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="22" y1="12" x2="18" y2="12" />
+            <line x1="6" y1="12" x2="2" y2="12" />
+            <line x1="12" y1="6" x2="12" y2="2" />
+            <line x1="12" y1="22" x2="12" y2="18" />
+          </svg>
+          <span class="status-text" id="status-coords">X: 0.00 mm | Y: 0.00 mm</span>
+        </div>
+
+        <div class="status-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="6,3 18,3 22,11 14,21 2,13" />
+          </svg>
+          <span class="status-text" id="status-cells">셀: 0개</span>
+        </div>
+
+        <div class="status-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <span class="status-text" id="status-zoom">100%</span>
+        </div>
+
+        <div class="status-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+          </svg>
+          <span class="status-text" id="status-selected">선택: 0개</span>
+        </div>
+
+        <div class="status-spacer"></div>
+
+        <div class="status-item hint-item">
+          <span class="status-hint">휠: 줌 | 휠 드래그: 이동 | + / 클릭: 씨드 추가 | 우클릭: 셀 삭제</span>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loading-overlay">
+    <div class="loading-spinner-box">
+      <div class="spinner-ring"></div>
+      <div class="spinner-dot"></div>
+      <span class="loading-text" id="loading-text">처리 중...</span>
+    </div>
+  </div>
+
+  <!-- Frontend JavaScript Modules -->
+  <script src="./js/api.js"></script>
+  <script src="./js/canvas.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>

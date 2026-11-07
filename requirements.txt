@@ -1,0 +1,7 @@
+flask>=2.3
+flask-cors
+gunicorn>=21.2
+ezdxf>=1.0
+scipy>=1.11
+shapely>=2.0
+numpy>=1.24
