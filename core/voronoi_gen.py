@@ -103,7 +103,7 @@ def post_process_polygon(
         # ====================================================
         if is_seamless:
             current = poly
-            if cell_gap > 1e-4:
+            if cell_gap > 1e-5:
                 current = current.buffer(-cell_gap / 2.0)
                 if current.is_empty or current.area <= 1e-4:
                     return []
@@ -160,7 +160,7 @@ def post_process_polygon(
 
             for sp in sub_polys:
                 current = sp
-                if cell_gap > 1e-4:
+                if cell_gap > 1e-5:
                     current = current.buffer(-cell_gap / 2.0)
                     if current.is_empty or current.area <= 1e-4:
                         continue
@@ -191,7 +191,7 @@ def post_process_polygon(
         # ====================================================
         if is_seamless:
             current = poly
-            if cell_gap > 1e-4:
+            if cell_gap > 1e-5:
                 current = current.buffer(-cell_gap / 2.0, join_style=2)
                 if current.is_empty or current.area <= 1e-4:
                     return []
@@ -251,7 +251,7 @@ def post_process_polygon(
 
             for sp in sub_polys:
                 current = sp
-                if cell_gap > 1e-4:
+                if cell_gap > 1e-5:
                     current = current.buffer(-cell_gap / 2.0, join_style=2)
                     if current.is_empty or current.area <= 1e-4:
                         continue

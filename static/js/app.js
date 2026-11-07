@@ -715,16 +715,18 @@ class VoronoiApp {
     const splineTypeEl = document.querySelector('input[name="spline_type"]:checked');
     const splineType = splineTypeEl ? splineTypeEl.value : 'pebble';
 
-    const density = parseFloat(document.getElementById('input-density')?.value) || 0.5;
-    const cellSize = parseFloat(document.getElementById('input-cell-size')?.value) || 15;
+    const density = parseFloat(document.getElementById('input-density-num')?.value ?? document.getElementById('input-density')?.value) || 0.5;
+    const cellSize = parseFloat(document.getElementById('input-cell-size-num')?.value ?? document.getElementById('input-cell-size')?.value) || 15;
     const seed = parseInt(document.getElementById('input-seed')?.value, 10) || 42;
-    const jitter = parseFloat(document.getElementById('input-jitter')?.value) || 0.7;
-    const lloydIterations = parseInt(document.getElementById('input-lloyd')?.value, 10) || 0;
-    const rotation = parseFloat(document.getElementById('input-rotation')?.value) || 0;
-    const boundaryOffset = parseFloat(document.getElementById('input-boundary-offset')?.value) || 0;
-    const cellGap = parseFloat(document.getElementById('input-cell-gap')?.value) || 0.5;
-    const cornerRadius = parseFloat(document.getElementById('input-corner-radius')?.value) || 0;
-    const smoothness = parseFloat(document.getElementById('input-smoothness')?.value) || 0;
+    const rawJitter = parseFloat(document.getElementById('input-jitter')?.value);
+    const jitter = isNaN(rawJitter) ? 0.7 : Math.max(0, Math.min(1, rawJitter));
+    const lloydIterations = parseInt(document.getElementById('input-lloyd-num')?.value ?? document.getElementById('input-lloyd')?.value, 10) || 0;
+    const rotation = parseFloat(document.getElementById('input-rotation-num')?.value ?? document.getElementById('input-rotation')?.value) || 0;
+    const boundaryOffset = parseFloat(document.getElementById('input-boundary-offset-num')?.value ?? document.getElementById('input-boundary-offset')?.value) || 0;
+    const rawGap = parseFloat(document.getElementById('input-cell-gap-num')?.value ?? document.getElementById('input-cell-gap')?.value);
+    const cellGap = isNaN(rawGap) ? 0.5 : Math.max(0, rawGap);
+    const cornerRadius = parseFloat(document.getElementById('input-corner-radius-num')?.value ?? document.getElementById('input-corner-radius')?.value) || 0;
+    const smoothness = parseFloat(document.getElementById('input-smoothness-num')?.value ?? document.getElementById('input-smoothness')?.value) || 0;
 
     const selected = this.state.boundaries.filter((b) =>
       this.state.selectedBoundaryIds.includes(b.id)
